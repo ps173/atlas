@@ -1,9 +1,8 @@
 import express from "express";
 import cuid from "cuid";
-import { Server, Socket } from "socket.io";
+import { Server } from "socket.io";
 import { createServer } from "http";
 import { config } from "dotenv";
-import { DefaultEventsMap } from "socket.io/dist/typed-events";
 config();
 
 const port = process.env.PORT;
@@ -68,7 +67,8 @@ io.on("connection", (socket) => {
       socket.emit("newParticipant", JSON.stringify(payload));
       socket.to(gameId).emit("newParticipant", JSON.stringify(payload));
     } catch (err) {
-      throw new Error(err);
+      console.error(err);
+      socket.emit("error", err.message);
     }
   });
   socket.on("disconnect", () => {
@@ -126,7 +126,10 @@ function addUserToExistingGame({
 }) {
   const gameIndex = currentGames.findIndex((v) => v.gameId === gameId);
   if (currentGames[gameIndex].clientIds.includes(clientId)) {
-    return "Participant already exists";
+    throw new Error("Participant already exists");
+  }
+  if (currentGames[gameIndex].clientIds.length === 2) {
+    throw new Error("Cannot add more participants");
   }
   currentGames[gameIndex].clientIds.push(clientId);
   return currentGames[gameIndex];

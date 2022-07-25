@@ -1,5 +1,6 @@
+import { createContext } from "react";
 import { io } from "socket.io-client";
+import config from "./config";
 
-const socket = io(import.meta.env.VITE_BACKEND_URL);
-
-export default socket;
+export const socket = io(config.socketUrl);
+export const SocketContext = createContext(socket);

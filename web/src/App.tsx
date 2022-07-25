@@ -1,17 +1,48 @@
 import { useEffect, useState } from "react";
-import socket from "./socket";
-interface GameInterface {
-  gameId: string;
-  clientIds: string;
-}
+import { GameScreen } from "./components/GameScreen";
+import { socket, SocketContext } from "./socket";
+import { GameInterface } from "./types";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 function App() {
   const [currentGame, setCurrentGame] = useState<null | GameInterface>(null);
   const [gameId, setGameId] = useState<string | null>(null);
+  const createGame = () => {
+    socket.emit(
+      "createGame",
+      JSON.stringify({
+        clientId: socket.id,
+      })
+    );
+  };
+
+  const joinGame = () => {
+    socket.emit(
+      "joinExistingGame",
+      JSON.stringify({
+        clientId: socket.id,
+        gameId: gameId,
+      })
+    );
+  };
+
+  const updateGameState = (body: string) => {
+    const gameData = JSON.parse(body);
+    setCurrentGame(gameData);
+  };
 
   useEffect(() => {
     socket.on("connect", () => {
       console.log("connection established!!");
+    });
+
+    socket.on("error", (error) => {
+      console.log(error);
+      toast(`Error : ${error}`, {
+        theme: "colored",
+        type: "error",
+      });
     });
 
     socket.on("disconnect", () => {
@@ -19,24 +50,12 @@ function App() {
       console.log("disconnected from sever !!");
     });
 
-    socket.on("removedParticipant", (body: string) => {
-      const gameData = JSON.parse(body);
-      console.log("removed user from game", gameData);
-      setCurrentGame(gameData);
-    });
-
-    socket.on("newParticipant", (body: string) => {
-      const gameData = JSON.parse(body);
-      setCurrentGame(gameData);
-      console.log("Added new user to game", gameData);
-    });
-    socket.on("game", (body: string) => {
-      const gameData = JSON.parse(body);
-      setCurrentGame(gameData);
-      console.log("new game created", gameData);
-    });
+    socket.on("removedParticipant", updateGameState);
+    socket.on("newParticipant", updateGameState);
+    socket.on("game", updateGameState);
     return () => {
       socket.off("connect");
+      socket.off("error");
       socket.off("disconnect");
       socket.off("game");
       socket.off("removedParticipant");
@@ -45,89 +64,40 @@ function App() {
   }, []);
 
   return (
-    <div>
-      <button
-        type="button"
-        onClick={() => {
-          socket.disconnect();
-        }}
-      >
-        Disconnect
-      </button>
-      <button
-        type="button"
-        onClick={() => {
-          socket.emit("message", "Hi");
-        }}
-      >
-        Ping Server
-      </button>
-      {currentGame !== null && currentGame.clientIds.includes(socket.id) ? (
-        <GameScreen gameRoom={currentGame} />
-      ) : (
-        <div>
-          <button
-            type="button"
-            onClick={() => {
-              socket.emit(
-                "createGame",
-                JSON.stringify({
-                  clientId: socket.id,
-                })
-              );
-            }}
-          >
-            Create New Game
-          </button>
-
-          <div>
-            <input
-              onChange={(e) => {
-                setGameId(e.target.value);
-              }}
-            />
-            <br />
-            <button
-              type="button"
-              onClick={() => {
-                socket.emit(
-                  "joinExistingGame",
-                  JSON.stringify({
-                    clientId: socket.id,
-                    gameId: gameId,
-                  })
-                );
-              }}
-            >
-              Join Game
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function GameScreen({ gameRoom }: { gameRoom: GameInterface }) {
-  return (
-    <div>
+    <SocketContext.Provider value={socket}>
       <div>
-        You are in a game room : {gameRoom.gameId} <br /> Total number of
-        members in game : {gameRoom.clientIds.length}{" "}
+        <button
+          type="button"
+          onClick={() => {
+            socket.emit("message", "Hi");
+          }}
+        >
+          Ping Server
+        </button>
+        {currentGame !== null && currentGame.clientIds.includes(socket.id) ? (
+          <GameScreen gameRoom={currentGame} />
+        ) : (
+          <div>
+            <button type="button" onClick={createGame}>
+              Create New Game
+            </button>
+
+            <div>
+              <input
+                onChange={(e) => {
+                  setGameId(e.target.value);
+                }}
+              />
+              <br />
+              <button type="button" onClick={joinGame}>
+                Join Game
+              </button>
+            </div>
+          </div>
+        )}
       </div>
-      <button
-        onClick={() => {
-          socket.emit(
-            "exitFromGame",
-            JSON.stringify({
-              gameId: gameRoom.gameId,
-            })
-          );
-        }}
-      >
-        Leave Game
-      </button>
-    </div>
+      <ToastContainer />
+    </SocketContext.Provider>
   );
 }
 
